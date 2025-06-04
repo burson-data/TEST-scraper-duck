@@ -175,54 +175,90 @@ def check_for_captcha_selenium(driver):
 def scrape_with_bs4(base_url):
     news_results = []
     page = 0
-    session = requests.Session() 
+    session = requests.Session() # Gunakan session
 
     while True:
         start = page * 10
         current_url = f"{base_url}&start={start}"
         
-        current_headers = BASE_HEADERS.copy()
-        current_headers["User-Agent"] = random.choice(USER_AGENTS)
-        if page > 0 : 
-            current_headers["Referer"] = f"{base_url}&start={(page-1)*10}"
-            current_headers["Sec-Fetch-Site"] = "same-origin"
+        # Sederhanakan header untuk BS4, biarkan session menangani cookies
+        # Cukup rotasi User-Agent
+        current_headers = {
+            "User-Agent": random.choice(USER_AGENTS),
+            # Anda bisa mencoba menambahkan Accept dan Accept-Language jika masih bermasalah
+            # "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            # "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
+        }
+        # Hapus pengaturan Referer dan Sec-Fetch-Site yang kompleks untuk BS4
+        # if page > 0 : 
+        #     current_headers["Referer"] = f"{base_url}&start={(page-1)*10}" # Dihapus
+        #     current_headers["Sec-Fetch-Site"] = "same-origin" # Dihapus
 
         print(f"BS4: Requesting page {page+1} - URL: {current_url}")
         try:
-            time.sleep(random.uniform(5.0, 12.0)) 
+            # Jeda yang lebih lama dan lebih bervariasi
+            time.sleep(random.uniform(7.0, 18.0)) # Tingkatkan jeda untuk BS4
             response = session.get(current_url, headers=current_headers, timeout=30)
-            response.raise_for_status()
+            response.raise_for_status() # Cek jika ada HTTP error (4xx atau 5xx)
         except requests.exceptions.RequestException as e:
             print(f"BS4: Request error on page {page+1}: {e}")
+            # Jika error karena timeout atau koneksi, mungkin lebih baik break
+            # Jika error karena status (misal 403 Forbidden), mungkin CAPTCHA atau blokir
+            if response is not None and response.status_code == 429: # Too Many Requests
+                print("BS4: Error 429 - Terlalu banyak request. Berhenti dan coba lagi nanti.")
+                st.error("BS4: Terlalu banyak request (Error 429). Silakan coba lagi setelah beberapa saat.")
             break 
 
         soup = BeautifulSoup(response.content, "html.parser")
 
-        if "CAPTCHA" in soup.title.string if soup.title else False or soup.find("form", id="captcha-form"):
-            print(f"BS4: CAPTCHA terdeteksi di halaman {page+1}. Menghentikan scraping untuk URL ini.")
-            st.warning(f"BS4: Terdeteksi CAPTCHA. Proses untuk keyword ini mungkin tidak lengkap.")
+        # Deteksi CAPTCHA yang lebih sederhana, karena BS4 tidak bisa render JavaScript
+        # Cari teks yang umum ada di halaman CAPTCHA Google
+        page_text_lower = soup.get_text().lower()
+        if "untuk melanjutkan, lengkapi captcha di bawah ini" in page_text_lower or \
+        "our systems have detected unusual traffic" in page_text_lower or \
+        "tentang laman ini" in page_text_lower and "tidak ada dokumen yang cocok dengan kueri penelusuran anda" not in page_text_lower: # "Tentang laman ini" kadang muncul di halaman CAPTCHA
+            print(f"BS4: Kemungkinan CAPTCHA terdeteksi di halaman {page+1} berdasarkan konten teks.")
+            st.warning(f"BS4: Kemungkinan terdeteksi CAPTCHA. Proses untuk keyword ini mungkin tidak lengkap.")
             break
 
         results_on_page = 0
-        for el in soup.select("div.SoaBEf"):
+        for el in soup.select("div.SoaBEf, div.Gx5Zad, div.xuvV6b, div.yDYNvb, div.MjjYud"): # Tambahkan selector umum lainnya untuk hasil Google
             try:
-                link_tag = el.find("a"); link = link_tag["href"] if link_tag and link_tag.has_attr("href") else None
-                if not link: continue
-                judul_tag = el.select_one("div.MBeuO"); judul = judul_tag.get_text() if judul_tag else "N/A"
-                snippet_tag = el.select_one(".GI74Re"); snippet = snippet_tag.get_text() if snippet_tag else "N/A"
-                tanggal_google_tag = el.select_one(".LfVVr"); tanggal_google = tanggal_google_tag.get_text() if tanggal_google_tag else "N/A"
+                link_tag = el.find("a", href=True)
+                if not link_tag: continue
+                link = link_tag["href"]
                 
+                # Coba beberapa selector untuk judul
+                title_tag = el.select_one("div.MBeuO, h3, div.n0jPhd") # Tambahkan h3 dan selector lain
+                judul = title_tag.get_text(strip=True) if title_tag else "N/A"
+
+                snippet_tag = el.select_one(".GI74Re, .OSrXXb, .d4rhi") # Tambahkan selector lain
+                snippet = snippet_tag.get_text(strip=True) if snippet_tag else "N/A"
+                
+                date_tag = el.select_one(".LfVVr, .OSrXXb span, .dSbHq") # Tambahkan selector lain
+                tanggal_google = date_tag.get_text(strip=True) if date_tag else "N/A"
+                
+                if judul == "N/A" and "google.com/url?q=" not in link: # Skip jika tidak ada judul dan bukan link redirect Google
+                    # Kadang ada div kosong yang cocok dengan selector utama
+                    continue
+
                 tanggal_akurat = get_exact_publish_date(link, tanggal_google)
                 news_results.append({"Link": link, "Judul": judul, "Snippet": snippet, "Tanggal": tanggal_akurat, "Media": extract_domain_from_url(link)})
                 results_on_page += 1
             except Exception as e:
-                # print(f"BS4: Error parsing element: {e}")
+                # print(f"BS4: Error parsing element: {e} - Element HTML: {el.prettify()[:200]}") # Untuk debug
                 continue
         
         print(f"BS4: Page {page+1} - Found {results_on_page} results.")
         if results_on_page == 0:
-            if page == 0: st.info("BS4: Tidak ada hasil ditemukan di halaman pertama.")
-            else: st.info(f"BS4: Tidak ada hasil lagi setelah halaman {page}.")
+            # Sebelum break, cek apakah ini benar-benar akhir atau halaman kosong karena masalah
+            if "tidak ada dokumen yang cocok dengan kueri penelusuran anda" in page_text_lower or \
+            "no results found for your query" in page_text_lower:
+                st.info(f"BS4: Tidak ada hasil lagi yang cocok dengan query setelah halaman {page}.")
+            elif page == 0:
+                st.info("BS4: Tidak ada hasil ditemukan di halaman pertama.")
+            else:
+                st.warning(f"BS4: Tidak ada hasil di halaman {page+1}, mungkin karena blokir atau akhir dari hasil yang diizinkan.")
             break
         page += 1
         # Pembatasan halaman dihapus

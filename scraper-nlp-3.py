@@ -112,261 +112,231 @@ try:
 except:
     locale.setlocale(locale.LC_TIME, "C")
 
-def convert_relative_date(text):
-    text = text.lower().strip()
-    today = datetime.today()
-    text = text.replace("yang", "").replace("  ", " ").strip()
-    date_obj = None
+# --- FUNGSI BARU: Ambil tanggal publish akurat ---
+def get_exact_publish_date(url, google_news_date_text):
+    """
+    Ambil tanggal publish asli dari artikel (jika ada),
+    fallback ke tanggal Google News jika gagal.
+    """
+    try:
+        article = Article(url, language="id", config=config)
+        article.download()
+        article.parse()
+        if article.publish_date:
+            # Format ke string YYYY-MM-DD atau DD Mon YYYY
+            return article.publish_date.strftime("%d %b %Y").lstrip("0")
+    except Exception as e:
+        # print(f"Newspaper3k failed for {url}: {e}") # Optional: for debugging
+        pass
+    # Fallback ke fungsi lama jika newspaper3k gagal atau tidak ada publish_date
+    return convert_relative_date(google_news_date_text)
 
-    if "hari lalu" in text:
-        match = re.search(r"(\d+)\s+hari", text)
-        if match:
-            date_obj = today - timedelta(days=int(match.group(1)))
-
-    elif "jam lalu" in text:
-        match = re.search(r"(\d+)\s+jam", text)
-        if match:
-            date_obj = today - timedelta(hours=int(match.group(1)))
-
-    elif "menit lalu" in text:
-        date_obj = today
-
-    elif "kemarin" in text:
-        date_obj = today - timedelta(days=1)
-
-    elif "minggu lalu" in text:
-        match = re.search(r"(\d+)\s+minggu", text)
-        if match:
-            date_obj = today - timedelta(weeks=int(match.group(1)))
-
-    elif "bulan lalu" in text:
-        match = re.search(r"(\d+)\s+bulan", text)
-        if match:
-            date_obj = today - timedelta(days=int(match.group(1)) * 30)
-
-    elif "tahun lalu" in text:
-        match = re.search(r"(\d+)\s+tahun", text)
-        if match:
-            date_obj = today - timedelta(days=int(match.group(1)) * 365)
-
-    elif re.match(r"\d{1,2}\s+\w+", text):
-        try:
-            date_obj = datetime.strptime(text + f" {today.year}", "%d %B %Y")
-        except:
-            return text
-
-    if date_obj:
-        return date_obj.strftime("%d %b %Y").lstrip("0")
-
-    return text
-
-# Fungsi untuk mengekstrak domain dari URL
-def extract_domain_from_url(url):
-    parsed_url = urlparse(url)
-    netloc = parsed_url.netloc
-    # Buang www. kalau ada, tapi simpan subdomain lainnya
-    if netloc.startswith("www."):
-        netloc = netloc[4:]
-    return netloc
-
-# Fungsi untuk menyimpan dan memuat jadwal
-def load_schedules():
-    if os.path.exists("schedules.pkl"):
-        with open("schedules.pkl", "rb") as f:
-            return pickle.load(f)
-    return []
-
-def save_schedules(schedules):
-    with open("schedules.pkl", "wb") as f:
-        pickle.dump(schedules, f)
-
-
-# Ubah fungsi scrape_with_bs4
 def scrape_with_bs4(base_url, headers=None):
     news_results = []
     page = 0
-
     while True:
         start = page * 10
         url = f"{base_url}&start={start}"
         response = requests.get(url, headers=headers)
         soup = BeautifulSoup(response.content, "html.parser")
         results_on_page = 0
-
         for el in soup.select("div.SoaBEf"):
             try:
-                news_results.append({
-                    "Link": el.find("a")["href"],
-                    "Judul": el.select_one("div.MBeuO").get_text(),
-                    "Snippet": el.select_one(".GI74Re").get_text(),
-                    "Tanggal": convert_relative_date(el.select_one(".LfVVr").get_text()),
-                    "Media": extract_domain_from_url(el.find("a")["href"])
+                link_tag = el.find("a")
+                if not link_tag or not link_tag.has_attr("href"):
+                    continue
+                link = link_tag["href"]
 
-                })
-                results_on_page += 1
-            except:
-                continue
+                judul_tag = el.select_one("div.MBeuO")
+                judul = judul_tag.get_text() if judul_tag else "N/A"
 
-        if results_on_page == 0:
-            break
+                snippet_tag = el.select_one(".GI74Re")
+                snippet = snippet_tag.get_text() if snippet_tag else "N/A"
 
-        page += 1
-        time.sleep(random.uniform(1.5, 25.0))  # Waktu tunggu lebih pendek, bisa disesuaikan
-    #NEW: Convert to dataframe & join with database
-    news_results = pd.DataFrame(news_results, columns=['Link', 'Judul', 'Snippet','Tanggal','Media'])
-    news_results = news_results.merge(media_db, on='Media', how='left')
-    return news_results
+                tanggal_google_tag = el.select_one(".LfVVr")
+                tanggal_google = tanggal_google_tag.get_text() if tanggal_google_tag else "N/A"
 
-# Ubah fungsi scrape_with_selenium
-def scrape_with_selenium(base_url):
-    options = Options()
-    # options.add_argument("--headless")
-    driver = webdriver.Chrome(options=options)
-    news_results = []
-    page = 0
-
-    while True:
-        start = page * 10
-        url = f"{base_url}&start={start}"
-        driver.get(url)
-        time.sleep(random.uniform(1.5, 25.0))
-
-        elements = driver.find_elements(By.CSS_SELECTOR, "div.SoaBEf")
-        if not elements:
-            break
-
-        for el in elements:
-            try:
-                link = el.find_element(By.TAG_NAME, "a").get_attribute("href")
-                title = el.find_element(By.CSS_SELECTOR, "div.MBeuO").text
-                snippet = el.find_element(By.CSS_SELECTOR, ".GI74Re").text
-                date = convert_relative_date(el.find_element(By.CSS_SELECTOR, ".LfVVr").text)
-                source = el.find_element(By.CSS_SELECTOR, ".NUnG9d span").text
+                tanggal_akurat = get_exact_publish_date(link, tanggal_google)
 
                 news_results.append({
                     "Link": link,
-                    "Judul": title,
+                    "Judul": judul,
                     "Snippet": snippet,
-                    "Tanggal": date,
-                    "Media": extract_domain_from_url(el.find_element(By.TAG_NAME, "a").get_attribute("href"))
-
-                })
-            except:
-                continue
-
-        page += 1
-
-    driver.quit()
-    # NEW: Convert to dataframe & join with database
-    news_results = pd.DataFrame(news_results, columns=['Link', 'Judul', 'Snippet','Tanggal','Media'])
-    news_results = news_results.merge(media_db, on='Media', how='left')
-    return news_results
-
-
-# NEW
-def scrape_duckduckgo(duck_url):
-    options = Options()
-    #options.add_argument("--headless") #Keep it visible for debugging
-    driver = webdriver.Chrome(options=options)
-    news_results = []
-
-    try:
-        results_count = 0
-        #seen_urls = set() # REMOVE THIS LINE
-
-        # **LOAD THE INITIAL PAGE BEFORE THE WHILE LOOP**
-        driver.get(duck_url)
-
-        # **SCROLL UNTIL NO MORE "LOAD MORE" BUTTON**
-        while True:
-            try:
-                # Wait for the "Load More" button to be present
-                load_more_button = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "button[type='button'].BttQvzGBidWFHCQKHTdB"))  # Adjust the selector!
-                )
-
-                # Click the "Load More" button
-                driver.execute_script("arguments[0].click();", load_more_button) #Click with Javascript
-
-                # Wait for the new content to load (adjust the wait time as needed)
-                time.sleep(5) #Wait longer
-
-            except Exception as e:
-                print(f"Load More button not found or error clicking: {e}")
-                break  # Break out of the scrolling loop
-
-        # **NOW, SCRAPE ALL THE ARTICLES**
-        elements = driver.find_elements(By.CSS_SELECTOR, "a.ksuAj6IYz34FJu0vGKNy") #Adjusted selector!
-
-        for el in elements:
-            try:
-                #Adjusted selectors
-                # link_element = el.find_element(By.CSS_SELECTOR, "a.ksuAj6IYz34FJu0vGKNy")
-                link = el.get_attribute("href")
-
-                #if link in seen_urls: # REMOVE THIS LINE
-                #    continue # REMOVE THIS LINE
-
-                title = el.find_element(By.CSS_SELECTOR, "h2.WctuDfRzXeUleKwpnBCx").text
-                snippet = el.find_element(By.CSS_SELECTOR, "div.kY2IgmnCmOGjharHErah > p").text  #See explanation below
-                date = el.find_element(By.CSS_SELECTOR, "div.VhGhXms6eIBX0xcsH9A4").text
-
-                news_results.append({
-                    "Link": link,
-                    "Judul": title,
-                    "Snippet": snippet,
-                    "Tanggal": date,
+                    "Tanggal": tanggal_akurat,
                     "Media": extract_domain_from_url(link)
                 })
-                #seen_urls.add(link) # REMOVE THIS LINE
-                results_count += 1
-
+                results_on_page += 1
             except Exception as e:
-                print(f"Error processing element: {e}")
+                # print(f"Error parsing element in BS4: {e}") # Optional: for debugging
                 continue
+        if results_on_page == 0:
+            break
+        page += 1
+        time.sleep(random.uniform(1.5, 5.0))
+    news_results_df = pd.DataFrame(news_results, columns=['Link', 'Judul', 'Snippet','Tanggal','Media'])
+    if not news_results_df.empty:
+        news_results_df = news_results_df.merge(media_db, on='Media', how='left')
+    return news_results_df
 
+def scrape_with_selenium(base_url):
+    options = FirefoxOptions()
+    # options.add_argument("--headless") # Uncomment for headless mode
+    driver = webdriver.Firefox(options=options)
+    news_results = []
+    page = 0
+    try:
+        while True:
+            start = page * 10
+            url = f"{base_url}&start={start}"
+            driver.get(url)
+            time.sleep(random.uniform(2.0, 6.0)) # Slightly longer for Selenium to load
+
+            elements = driver.find_elements(By.CSS_SELECTOR, "div.SoaBEf")
+            if not elements:
+                break
+            for el in elements:
+                try:
+                    link_element = el.find_element(By.TAG_NAME, "a")
+                    link = link_element.get_attribute("href")
+
+                    title = el.find_element(By.CSS_SELECTOR, "div.MBeuO").text
+                    snippet = el.find_element(By.CSS_SELECTOR, ".GI74Re").text
+                    date_google = el.find_element(By.CSS_SELECTOR, ".LfVVr").text
+                    # source = el.find_element(By.CSS_SELECTOR, ".NUnG9d span").text # Source/Media is derived from URL
+
+                    date_akurat = get_exact_publish_date(link, date_google)
+
+                    news_results.append({
+                        "Link": link,
+                        "Judul": title,
+                        "Snippet": snippet,
+                        "Tanggal": date_akurat,
+                        "Media": extract_domain_from_url(link)
+                    })
+                except Exception as e:
+                    # print(f"Error parsing element in Selenium: {e}") # Optional: for debugging
+                    continue
+            page += 1
     finally:
         driver.quit()
 
-    # NEW: Convert to dataframe & join with database
     news_results_df = pd.DataFrame(news_results, columns=['Link', 'Judul', 'Snippet','Tanggal','Media'])
-    news_results_df = news_results_df.merge(media_db, on='Media', how='left')
+    if not news_results_df.empty:
+        news_results_df = news_results_df.merge(media_db, on='Media', how='left')
     return news_results_df
 
-# Ubah get_news_data untuk menghapus max_pages
+def scrape_duckduckgo(duck_url):
+    options = FirefoxOptions()
+    # options.add_argument("--headless")
+    driver = webdriver.Firefox(options=options)
+    news_results = []
+    try:
+        driver.get(duck_url)
+        time.sleep(2) # Initial load
+
+        while True: # Scroll to load more results
+            try:
+                load_more_button = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "button[type='button'].BttQvzGBidWFHCQKHTdB, button.result--more__btn")) # Added another common selector
+                )
+                driver.execute_script("arguments[0].scrollIntoView(true);", load_more_button)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", load_more_button)
+                time.sleep(random.uniform(3, 6)) # Wait for new content
+            except Exception as e:
+                # print(f"Load More button not found or error clicking: {e}") # Optional
+                break
+
+        elements = driver.find_elements(By.CSS_SELECTOR, "article[data-testid='result']") # More robust selector for DDG articles
+
+        for el in elements:
+            try:
+                link_element = el.find_element(By.CSS_SELECTOR, "a[data-testid='result-title-a']")
+                link = link_element.get_attribute("href")
+
+                title = link_element.find_element(By.CSS_SELECTOR, "span").text
+
+                snippet_element = el.find_element(By.CSS_SELECTOR, "div[data-testid='result-snippet']")
+                snippet = snippet_element.text if snippet_element else "N/A"
+
+                date_source_element = el.find_element(By.CSS_SELECTOR, "div.result__extras__timestamp, span.result__timestamp") # Check multiple selectors
+                date_google = date_source_element.text if date_source_element else "N/A"
+
+                date_akurat = get_exact_publish_date(link, date_google)
+
+                news_results.append({
+                    "Link": link,
+                    "Judul": title,
+                    "Snippet": snippet,
+                    "Tanggal": date_akurat,
+                    "Media": extract_domain_from_url(link)
+                })
+            except Exception as e:
+                # print(f"Error processing DDG element: {e}") # Optional
+                continue
+    finally:
+        driver.quit()
+
+    news_results_df = pd.DataFrame(news_results, columns=['Link', 'Judul', 'Snippet','Tanggal','Media'])
+    if not news_results_df.empty:
+        news_results_df = news_results_df.merge(media_db, on='Media', how='left')
+    return news_results_df
+
 def get_news_data(method, start_date, end_date, keyword_query):
     headers = {
         "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.54 Safari/537.36"
     }
 
-    keyword_query = format_boolean_query(keyword_query)
+    keyword_query_formatted = format_boolean_query(keyword_query)
+
+    start_date_str = start_date.strftime('%Y-%m-%d')
+
     if isinstance(end_date, datetime):
-        end_date = end_date.date()
+        end_date_obj = end_date.date()
+    else:
+        end_date_obj = end_date
 
-    end_date_plus_one = end_date + timedelta(days=1)
-    full_query = f"{keyword_query} after:{start_date} before:{end_date_plus_one}"
-    encoded_query = urllib.parse.quote(full_query)
+    end_date_plus_one = end_date_obj + timedelta(days=1)
+    end_date_plus_one_str = end_date_plus_one.strftime('%Y-%m-%d')
+    end_date_str = end_date_obj.strftime('%Y-%m-%d')
 
-    base_url = f"https://www.google.com/search?q={encoded_query}&gl=id&hl=id&lr=lang_id&tbm=nws&num=10"
-    
-    
-    duck_url= f"https://duckduckgo.com/?q={keyword_query}&t=h_&df={start_date}...{end_date_plus_one}&iar=news&kl=id-id"
+    full_query_google = f"{keyword_query_formatted} after:{start_date_str} before:{end_date_plus_one_str}"
+    encoded_query_google = urllib.parse.quote(full_query_google)
+    base_url_google = f"https://www.google.com/search?q={encoded_query_google}&gl=id&hl=id&lr=lang_id&tbm=nws&num=10"
 
-    # 🚀 First scrape:
+    encoded_query_duck = urllib.parse.quote(keyword_query)
+    duck_url = f"https://duckduckgo.com/?q={encoded_query_duck}&t=h_&df={start_date_str}...{end_date_str}&iar=news&kl=id-id"
+
+    news_df = pd.DataFrame() 
+
     if method == "BeautifulSoup":
-        news_df = scrape_with_bs4(base_url, headers)
-    elif method == "Selenium":
-        news_df = scrape_with_selenium(base_url)
+        news_df = scrape_with_bs4(base_url_google, headers)
+    elif method == "Selenium": 
+        news_df = scrape_with_selenium(base_url_google)
     elif method == "Selenium DuckDuckGo":
         news_df = scrape_duckduckgo(duck_url)
     else:
         raise ValueError("Invalid method")
 
-    # 🧠 Then enrich:
-    # news_df = enrich_with_nlp(news_df)
+    # --- BAGIAN PENGURUTAN ---
+    if not news_df.empty and 'Tanggal' in news_df.columns:
+        # Buat kolom sementara untuk tanggal yang bisa di-sort
+        # errors='coerce' akan mengubah tanggal yang tidak valid menjadi NaT (Not a Time)
+        # Pandas akan mencoba menebak formatnya. Jika Anda tahu formatnya pasti (misal '%d %b %Y'),
+        # Anda bisa menambahkannya: pd.to_datetime(news_df['Tanggal'], format='%d %b %Y', errors='coerce')
+        # Namun, karena bisa ada YYYY-MM-DD juga, membiarkan Pandas menebak mungkin lebih fleksibel.
+        news_df['SortableDate'] = pd.to_datetime(news_df['Tanggal'], errors='coerce')
 
-    # ✅ Finally return:
+        # Urutkan berdasarkan 'SortableDate' dari terbaru ke terlama (descending)
+        # NaT (tanggal yang tidak valid) akan diletakkan di akhir
+        news_df = news_df.sort_values(by='SortableDate', ascending=False, na_position='last')
+
+        # (Opsional) Hapus kolom sementara jika tidak ingin ditampilkan
+        news_df = news_df.drop(columns=['SortableDate'])
+    # --- AKHIR BAGIAN PENGURUTAN ---
+
+    return news_df
 
 # Download article & analyze sentiment
 def enrich_with_nlp(df, selected_nlp=[]):

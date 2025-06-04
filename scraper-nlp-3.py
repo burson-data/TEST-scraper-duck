@@ -501,7 +501,7 @@ with st.sidebar:
 
 
 if menu == "Scrape":
-    st.title("📰 Burson News Scraper - v0.0.2")
+    st.title("📰 Burson News Scraper - v1.0.5")
     st.markdown("Scrape berita berdasarkan **Boolean Keyword** dan input tanggal, lalu simpan ke Excel.")
 
     with st.form("scrape_form"):
@@ -808,31 +808,48 @@ Tips:
 elif menu == "About":
     st.title("ℹ️ About")
     st.markdown("""
-### Burson News Scraper v0.0.2
+    ### Versi: 1.0.5 (Improved Date Extraction)
 
-**Release Note:**
-- ✅ Fix bug error
-- ✅ Fix Boolean search error
-- ✅ Auto-randomize delay scraping
-- ✅ Auto scrape seluruh halaman
-- ✅ Fix error pada format tanggal/waktu
-- ✅ New side menu
-                
-**Release Note v1.0.1**
-- ✅ Join ke database media dari google sheets
-- ✅ New queue menu & system
+    Alat ini dikembangkan untuk mempermudah proses pengumpulan dan analisis awal artikel berita dari web.
 
-**Release Note v1.0.2**
-- ✅ Full article text extraction
-- ✅ Penggunaan model sentiment & summarizer dari HuggingFace untuk klasifikasi
-- ✅ Penggunaan Yake untuk ekstraksi keywords
+    **Fitur Utama:**
+    - Pencarian berita dengan keyword Boolean.
+    - Pilihan metode scraping (BeautifulSoup & Selenium untuk Google News, Selenium untuk DuckDuckGo).
+    - Ekstraksi tanggal publish yang lebih akurat langsung dari halaman artikel.
+    - Integrasi NLP (Natural Language Processing) untuk:
+        - Ekstraksi konten artikel.
+        - Ringkasan otomatis (model Bahasa Indonesia).
+        - Analisis sentimen (model Bahasa Indonesia).
+        - Ekstraksi keywords.
+        - Ekstraksi nama penulis.
+    - Sistem antrian untuk multiple scraping.
+    - Alat NLP untuk memproses file Excel berisi link.
+    - Antarmuka pengguna yang interaktif dengan Streamlit.
 
-**Release Note v1.0.3**
-- ✅ NLP Tools untuk mengekstrak author, etc. dari list link artikel
+    **Teknologi yang Digunakan:**
+    - Python
+    - Streamlit
+    - Pandas
+    - Requests, BeautifulSoup4
+    - Selenium (dengan GeckoDriver untuk Firefox)
+    - Newspaper3k
+    - Transformers (Hugging Face) untuk Summarization & Sentiment Analysis
+    - YAKE! untuk Keyword Extraction
 
-**Release Note v1.0.4**
-- ✅ Menambahkan fitur ekstraksi tanggal exact              
----
+    **Perubahan Terbaru (v1.0.5):**
+    - **Prioritas Tanggal Akurat**: Scraper kini secara default mencoba mengambil tanggal publikasi langsung dari halaman artikel menggunakan `newspaper3k`. Jika gagal, baru menggunakan tanggal relatif dari hasil pencarian Google/DuckDuckGo.
+    - Perbaikan kecil pada UI dan alur kerja.
+    - Peningkatan pada selector DuckDuckGo.
+    - Penyesuaian default tanggal pada form.
 
-**Made by**: Jay and Naomi ✨
-""")
+    **Release Notes Sebelumnya:**
+    - v1.0.4: Menambahkan fitur ekstraksi tanggal exact (sekarang jadi default).
+    - v1.0.3: NLP Tools untuk mengekstrak author, etc. dari list link artikel.
+    - v1.0.2: Full article text extraction, model sentiment & summarizer, Yake keywords.
+    - v1.0.1: Join ke database media, new queue menu & system.
+    - v0.0.2: Fix bug, Boolean search, auto-randomize delay, auto scrape all pages, fix date format, new side menu.
+
+    ---
+
+    **Dibuat oleh**: Jay dan Naomi ✨
+    """)

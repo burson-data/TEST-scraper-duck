@@ -258,7 +258,7 @@ def scrape_with_bs4(base_url):
             elif page == 0:
                 st.info("BS4: Tidak ada hasil ditemukan di halaman pertama.")
             else:
-                st.warning(f"BS4: Tidak ada hasil di halaman {page+1}, mungkin karena blokir atau akhir dari hasil yang diizinkan.")
+                st.warning(f"Pencarian Selesai")
             break
         page += 1
         # Pembatasan halaman dihapus
@@ -553,7 +553,7 @@ with st.sidebar:
         styles={"icon": {"color": "orange"},"nav-link": {"--hover-color": "#eee"},"nav-link-selected": {"background-color": "green"},},)
 
 if menu == "Scrape":
-    st.title("📰 Burson News Scraper - v1.0.7 (No Page Limit)")
+    st.title("📰 Burson News Scraper - v1.0.7")
     st.markdown("Scrape berita dengan upaya menghindari CAPTCHA. **Pembatasan halaman telah dihapus - gunakan dengan hati-hati.**")
 
     run_selenium_interactively = False

@@ -547,7 +547,7 @@ def load_models():
 with st.sidebar:
     menu = option_menu(
         menu_title = "Main Menu",
-        options=["Scrape", "Queue", "NLP Tools", "Scheduler", "How to use", "About"],
+        options=["How to use", "Scrape", "Queue", "NLP Tools", "Scheduler", "About"],
         icons=["search", "list-check", "tools", "clock", "question-circle-fill", "diagram-3"],
         menu_icon="cast", default_index=0,
         styles={"icon": {"color": "orange"},"nav-link": {"--hover-color": "#eee"},"nav-link-selected": {"background-color": "green"},},)
@@ -555,11 +555,6 @@ with st.sidebar:
 if menu == "Scrape":
     st.title("📰 Burson News Scraper - v1.0.7")
     st.markdown("Scrape berita dengan upaya menghindari CAPTCHA. **Pembatasan halaman telah dihapus - gunakan dengan hati-hati.**")
-
-    run_selenium_interactively = False
-    if st.checkbox("Jalankan Selenium secara interaktif (untuk debug/menyelesaikan CAPTCHA manual)", value=False, key="interactive_selenium"):
-        run_selenium_interactively = True
-        st.caption("Jika dicentang, browser Selenium akan terlihat dan Anda bisa diminta menyelesaikan CAPTCHA manual jika terdeteksi.")
 
     with st.form("scrape_form"):
         keyword = st.text_input("Masukkan keyword (gunakan AND, OR, NOT):", value="")
@@ -570,6 +565,11 @@ if menu == "Scrape":
         with col2:
             end_date = st.date_input("Tanggal akhir", value=datetime.now().date())
         method = st.radio("Metode Scraping:", ["BeautifulSoup", "Selenium", "Selenium DuckDuckGo"], horizontal=True, index=0)
+         run_selenium_interactively = False
+        if st.checkbox("Jalankan Selenium secara interaktif (untuk debug/menyelesaikan CAPTCHA manual)", value=False, key="interactive_selenium"):
+         run_selenium_interactively = True
+        st.caption("Jika dicentang, browser Selenium akan terlihat dan Anda bisa diminta menyelesaikan CAPTCHA manual jika terdeteksi.")
+     
         nlp_options = st.multiselect("Pilih fitur NLP (opsional):",["Article Content", "Summary", "Sentiment", "Keywords", "Author", "Exact Publish Date"])
         submitted = st.form_submit_button("Mulai Scrape")
 

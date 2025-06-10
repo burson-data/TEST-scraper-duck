@@ -152,7 +152,7 @@ def get_exact_publish_date(url, google_news_date_text):
         article_config.browser_user_agent = random.choice(USER_AGENTS)
         article_config.request_timeout = 25
         
-        article = Article(url, language="id", config=article_config)
+        article = Article(url, config=article_config)
         time.sleep(random.uniform(2.0, 5.0)) 
         article.download()
         article.parse()
@@ -438,7 +438,7 @@ def get_news_data(method, start_date, end_date, keyword_query, run_interactively
     end_date_plus_one_str = (end_date_obj + timedelta(days=1)).strftime('%Y-%m-%d')
     end_date_str = end_date_obj.strftime('%Y-%m-%d')
 
-    base_url_google = f"https://www.google.com/search?q={urllib.parse.quote(f'{keyword_query_formatted} after:{start_date_str} before:{end_date_plus_one_str}')}&gl=id&hl=id&lr=lang_id&tbm=nws&num=10"
+    base_url_google = f"https://www.google.com/search?q={urllib.parse.quote(f'{keyword_query_formatted} after:{start_date_str} before:{end_date_plus_one_str}')}&gl=id&tbm=nws&num=10"
     duck_url = f"https://duckduckgo.com/?q={urllib.parse.quote(keyword_query)}&t=h_&df={start_date_str}...{end_date_str}&iar=news&kl=id-id"
 
     news_df = pd.DataFrame()

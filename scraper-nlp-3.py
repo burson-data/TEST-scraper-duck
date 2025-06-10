@@ -197,7 +197,7 @@ def scrape_with_bs4(base_url):
         print(f"BS4: Requesting page {page+1} - URL: {current_url}")
         try:
             # Jeda yang lebih lama dan lebih bervariasi
-            time.sleep(random.uniform(7.0, 18.0)) # Tingkatkan jeda untuk BS4
+            time.sleep(random.uniform(2.0, 6.0)) # Tingkatkan jeda untuk BS4
             response = session.get(current_url, headers=current_headers, timeout=30)
             response.raise_for_status() # Cek jika ada HTTP error (4xx atau 5xx)
         except requests.exceptions.RequestException as e:
@@ -292,9 +292,9 @@ def scrape_with_selenium(base_url, run_interactively=False):
             current_url = f"{base_url}&start={start}"
             print(f"Selenium: Requesting page {page+1} - URL: {current_url}")
             
-            time.sleep(random.uniform(6.0, 15.0)) 
+            time.sleep(random.uniform(2.0, 5.0)) 
             driver.get(current_url)
-            time.sleep(random.uniform(3.0, 7.0)) 
+            time.sleep(random.uniform(3.0, 4.0)) 
 
             if check_for_captcha_selenium(driver):
                 st.warning(f"Selenium: Terdeteksi CAPTCHA di halaman {page+1}.")
@@ -302,7 +302,7 @@ def scrape_with_selenium(base_url, run_interactively=False):
                     try:
                         input("CAPTCHA terdeteksi. Selesaikan di browser, lalu tekan Enter di terminal ini untuk melanjutkan...")
                         driver.refresh()
-                        time.sleep(5)
+                        time.sleep(2)
                         if check_for_captcha_selenium(driver): 
                             print("Selenium: CAPTCHA masih ada setelah intervensi manual. Menghentikan.")
                             break
@@ -356,15 +356,15 @@ def scrape_duckduckgo(duck_url, run_interactively=False):
     news_results = []
     try:
         print(f"DuckDuckGo: Requesting URL: {duck_url}")
-        time.sleep(random.uniform(5.0, 10.0))
+        time.sleep(random.uniform(2.0, 5.0))
         driver.get(duck_url)
-        time.sleep(random.uniform(4.0, 8.0))
+        time.sleep(random.uniform(1.0, 3.0))
 
         if check_for_captcha_selenium(driver): 
             st.warning(f"DuckDuckGo: Terdeteksi CAPTCHA.")
             if run_interactively:
                 input("CAPTCHA terdeteksi. Selesaikan di browser, lalu tekan Enter di terminal ini untuk melanjutkan...")
-                driver.refresh(); time.sleep(5)
+                driver.refresh(); time.sleep(2)
                 if check_for_captcha_selenium(driver): print("DuckDuckGo: CAPTCHA masih ada. Menghentikan."); return pd.DataFrame()
             else: return pd.DataFrame()
         
@@ -392,7 +392,7 @@ def scrape_duckduckgo(duck_url, run_interactively=False):
                     driver.execute_script("arguments[0].scrollIntoView(true);", load_more_button)
                     time.sleep(0.5)
                     driver.execute_script("arguments[0].click();", load_more_button)
-                    time.sleep(random.uniform(4.0, 7.0)) 
+                    time.sleep(random.uniform(1.0, 3.0)) 
                 else:
                     print("DuckDuckGo: Tombol 'Load More' tidak ditemukan atau tidak aktif lagi. Menghentikan scroll.")
                     break 
